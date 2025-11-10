@@ -1,61 +1,62 @@
-const express = require("express");
+import express from "express";
+import multer from "multer";
+import fetch from "node-fetch";
+import cors from "cors";
+import fs from "fs";
+import FormData from "form-data";
+
 const app = express();
-const port = process.env.PORT || 3001;
+const upload = multer({ dest: "uploads/" });
+const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => res.type('html').send(html));
+app.use(cors());
+app.use(express.json());
+app.use(express.static("public"));
 
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+// rota de teste
+app.get("/", (req, res) => {
+  res.send("🚀 Ark Scan 3D backend ativo e pronto!");
+});
 
-server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 120 * 1000;
+// rota de upload e envio pra KIRI API
+app.post("/upload", upload.array("files"), async (req, res) => {
+  try {
+    const KIRI_API_KEY = process.env.KIRI_API_KEY;
+    if (!KIRI_API_KEY) {
+      return res.status(400).json({ error: "API key não configurada" });
+    }
 
-const html = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Hello from Render!</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script>
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-          disableForReducedMotion: true
-        });
-      }, 500);
-    </script>
-    <style>
-      @import url("https://p.typekit.net/p.css?s=1&k=vnd5zic&ht=tk&f=39475.39476.39477.39478.39479.39480.39481.39482&a=18673890&app=typekit&e=css");
-      @font-face {
-        font-family: "neo-sans";
-        src: url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/l?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff2"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/d?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("woff"), url("https://use.typekit.net/af/00ac0a/00000000000000003b9b2033/27/a?primer=7cdcb44be4a7db8877ffa5c0007b8dd865b3bbc383831fe2ea177f62257a9191&fvd=n7&v=3") format("opentype");
-        font-style: normal;
-        font-weight: 700;
-      }
-      html {
-        font-family: neo-sans;
-        font-weight: 700;
-        font-size: calc(62rem / 16);
-      }
-      body {
-        background: white;
-      }
-      section {
-        border-radius: 1em;
-        padding: 1em;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-right: -50%;
-        transform: translate(-50%, -50%);
-      }
-    </style>
-  </head>
-  <body>
-    <section>
-      Hello from Render!
-    </section>
-  </body>
-</html>
-`
+    const formData = new FormData();
+    req.files.forEach((file) => {
+      formData.append("files", fs.createReadStream(file.path));
+    });
+
+    const response = await fetch("https://api.kiriengine.app/upload", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KIRI_API_KEY}` },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    // limpa os arquivos temporários
+    req.files.forEach((file) => fs.unlinkSync(file.path));
+
+    if (response.ok) {
+      res.json({
+        message: "✅ Upload enviado com sucesso pra KIRI!",
+        data,
+      });
+    } else {
+      res.status(500).json({
+        error: "❌ Erro ao enviar pra KIRI",
+        details: data,
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro interno no servidor." });
+  }
+});
+
+app.listen(PORT, () => console.log(`🔥 Servidor rodando na porta ${PORT}`));
